@@ -1,0 +1,81 @@
+variables:
+  CONTAINER_IMAGE: registry.gitlab.com/daonm/$CI_PROJECT_NAME
+  STABLE_IMAGE_TAG: $CI_COMMIT_REF_SLUG-latest-stable
+  ARCHIVE_IMAGE_TAG: $CI_COMMIT_REF_SLUG-$CI_COMMIT_SHA
+  CREDENTIALS_DEV: '/home/azureuser/social-media-be/.env.development'
+  CREDENTIALS_PROD: '/home/node/credential/be/.env.production'
+  SLEEP_WHEN_START_CONTAINER: 10
+
+stages:
+  - build
+  - deploy
+
+before_script:
+  - echo CI_BUILD_TOKEN
+  - echo $CI_JOB_TOKEN
+  - echo $CI_REGISTRY
+  - docker info
+  - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+  - echo $USER
+
+# STAGE BUILD DEVELOP
+SOCIAL-MEDIA-DEVELOPMENT-BUILD:
+  variables:
+    EXPOSE_PORT: 9201
+    STABLE_IMAGE_TAG: build-develop-latest
+    IMAGE_NAME: $CONTAINER_IMAGE:$ARCHIVE_IMAGE_TAG
+  stage: build
+  tags:
+    - IMAGE-SOCIAL-MEDIA-BE
+  only:
+    - dev
+  script:
+    - rm -rf .git
+    - rm -rf .gitlab-ci.yml
+    - rm -rf .gitattributes
+
+    - cp -r $CREDENTIALS_DEV .env
+    - echo "Building the image $IMAGE_NAME ...."
+    # - docker compose build --force-rm
+    - docker build -t $CONTAINER_IMAGE:$STABLE_IMAGE_TAG .
+    # - echo  $IMAGE_NAME
+
+    # Push Archive by commit tag
+
+    # - docker push $IMAGE_NAME
+
+    # - docker tag $IMAGE_NAME $CONTAINER_IMAGE:$STABLE_IMAGE_TAG
+    # Push stable production
+    - docker push $CONTAINER_IMAGE:$STABLE_IMAGE_TAG
+
+    # Remove unuse images
+    - docker rmi $(docker images -qf dangling=true) || true
+    - echo "Build complete."
+
+# STAGE DELOY DEVELOP
+SOCIAL-MEDIA-DEVELOPMENT-DEPLOY:
+  variables:
+    EXPOSE_PORT: 9201
+    STABLE_IMAGE_TAG: build-develop-latest
+    IMAGE_NAME: $CONTAINER_IMAGE:$STABLE_IMAGE_TAG
+    CONTAINER_NAME: social-media-be
+  stage: deploy
+  tags:
+    - IMAGE-SOCIAL-MEDIA-BE
+  only:
+    - dev
+  script:
+    - rm -rf .git
+    - rm -rf .gitlab-ci.yml
+    - rm -rf .gitattributes
+
+    - echo "Build container $CONTAINER_NAME from $IMAGE_NAME for testing ..."
+    - docker pull $IMAGE_NAME
+
+    # Only run the services defined in docker-compose.yml
+    - docker compose up -d  --remove-orphans
+
+    - docker logs $CONTAINER_NAME
+    - docker rmi $(docker images -qf dangling=true) || true
+
+  when: on_success

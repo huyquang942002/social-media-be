@@ -1,0 +1,14 @@
+version: '3.9'
+services:
+  backendapi:
+    image: registry.gitlab.com/daonm/social-media-be:build-develop-latest
+    container_name: social-media-be
+    ports:
+      - "9201:9201"
+    environment:
+      - VIRTUAL_PORT=9201
+      - VIRTUAL_PATH=/api
+    restart: always
+    network_mode: bridge
+  
+  
