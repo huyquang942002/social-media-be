@@ -39,7 +39,7 @@ export class UserInteractService {
     @InjectRepository(Conversations)
     private conversationRepository: Repository<Conversations>,
     private notificationService: NotificationService,
-  ) {}
+  ) { }
 
   /*core functions*/
   async getInteractIdByAction(action: string): Promise<string> {
@@ -138,8 +138,8 @@ export class UserInteractService {
           ? { totalLove: (+total + 1).toString() }
           : { totalLove: +total - 1 < 0 ? 0 : (+total - 1).toString() }
         : isIncrease
-        ? { totalDisLove: (+total + 1).toString() }
-        : { totalDisLove: +total - 1 < 0 ? 0 : (+total - 1).toString() }),
+          ? { totalDisLove: (+total + 1).toString() }
+          : { totalDisLove: +total - 1 < 0 ? 0 : (+total - 1).toString() }),
     });
   }
 
@@ -151,8 +151,8 @@ export class UserInteractService {
           ? { totalLove: (+total + 1).toString() }
           : { totalLove: +total - 1 < 0 ? 0 : (+total - 1).toString() }
         : isIncrease
-        ? { totalDisLove: (+total + 1).toString() }
-        : { totalDisLove: +total - 1 < 0 ? 0 : (+total - 1).toString() }),
+          ? { totalDisLove: (+total + 1).toString() }
+          : { totalDisLove: +total - 1 < 0 ? 0 : (+total - 1).toString() }),
     });
   }
 
@@ -169,8 +169,8 @@ export class UserInteractService {
           ? { totalLove: (+total + 1).toString() }
           : { totalLove: +total - 1 < 0 ? 0 : (+total - 1).toString() }
         : isIncrease
-        ? { totalDisLove: (+total + 1).toString() }
-        : { totalDisLove: +total - 1 < 0 ? 0 : (+total - 1).toString() }),
+          ? { totalDisLove: (+total + 1).toString() }
+          : { totalDisLove: +total - 1 < 0 ? 0 : (+total - 1).toString() }),
     });
   }
 
@@ -242,7 +242,7 @@ export class UserInteractService {
         'Thông Báo',
         `${userSend?.username} vừa thích bài viết của bạn`,
       );
-    } catch (ex) {}
+    } catch (ex) { }
 
     //save total Like
     const { totalLove, totalDisLove } = thread;
@@ -276,7 +276,7 @@ export class UserInteractService {
           isIncrease: false,
         });
       }
-    } catch (ex) {}
+    } catch (ex) { }
   }
 
   async dislove({ entityId, userId }: { entityId: string; userId: string }) {
@@ -339,7 +339,7 @@ export class UserInteractService {
           isIncrease: false,
         });
       }
-    } catch (ex) {}
+    } catch (ex) { }
   }
 
   async commentThread({
@@ -543,7 +543,7 @@ export class UserInteractService {
         'Thông Báo',
         `${user.username} vừa thích bình luận của bạn `,
       );
-    } catch (ex) {}
+    } catch (ex) { }
 
     //save total Like
     const { totalLove, totalDisLove } = comment;
@@ -576,7 +576,7 @@ export class UserInteractService {
           isIncrease: false,
         });
       }
-    } catch (ex) {}
+    } catch (ex) { }
   }
 
   async dislikeComment({
@@ -641,7 +641,7 @@ export class UserInteractService {
           isIncrease: false,
         });
       }
-    } catch (ex) {}
+    } catch (ex) { }
   }
 
   async removeLikeComment({
@@ -774,41 +774,32 @@ export class UserInteractService {
     const actionLoveId = actionIds[InteractType.LOVE];
     const actionDisLoveId = actionIds[InteractType.DISLOVE];
 
-    const threadsWithLoveAndDisLove = await this.userInteractRepository.find({
-      where: [
-        {
-          deletedAt: IsNull(),
-          userId,
-          entityId: Any(postIds),
-          entityName: EntityInteractType.POST,
-          interactId: actionLoveId,
-        },
-        {
-          deletedAt: IsNull(),
-          userId,
-          entityId: Any(postIds),
-          entityName: EntityInteractType.POST,
-          interactId: actionDisLoveId,
-        },
-      ],
+    const interactions = await this.userInteractRepository.find({
+      where: {
+        deletedAt: IsNull(),
+        userId,
+        entityId: Any(postIds),
+        entityName: EntityInteractType.POST,
+        interactId: In([actionLoveId, actionDisLoveId]),
+      },
     });
 
-    const viewThreads = mapper
-      .mapArray(posts, Post, ViewPostDto)
-      .map((thread) => {
-        // const pollOption = polls.find((x) => {});
-        const isLovedThread = threadsWithLoveAndDisLove.find(
-          (x) => x.entityId == thread.id && x.interactId == actionLoveId,
-        );
-        const isDisLovedThread = threadsWithLoveAndDisLove.find(
-          (x) => x.entityId == thread.id && x.interactId == actionDisLoveId,
-        );
-        return {
-          ...thread,
-          isLoved: isLovedThread ? true : false,
-          isDisLoved: isDisLovedThread ? true : false,
-        };
-      });
+    const interactionMap = new Map();
+    interactions.forEach(interaction => {
+      const key = `${interaction.entityId}-${interaction.interactId}`;
+      interactionMap.set(key, true);
+    });
+
+    const viewThreads = posts.map(post => {
+      const loveKey = `${post.id}-${actionLoveId}`;
+      const disLoveKey = `${post.id}-${actionDisLoveId}`;
+      return {
+        ...post,
+        isLoved: interactionMap.has(loveKey),
+        isDisLoved: interactionMap.has(disLoveKey),
+      };
+    });
+
     return viewThreads;
   }
 
@@ -876,7 +867,7 @@ export class UserInteractService {
         'Thông Báo',
         `${user.username} vừa thích bình tin nhắn của bạn  `,
       );
-    } catch (ex) {}
+    } catch (ex) { }
 
     //save total Like
     const { totalLove, totalDisLove } = conversation;
@@ -909,7 +900,7 @@ export class UserInteractService {
           isIncrease: false,
         });
       }
-    } catch (ex) {}
+    } catch (ex) { }
   }
 
   async removeLoveConversation({
@@ -1012,7 +1003,7 @@ export class UserInteractService {
           isIncrease: false,
         });
       }
-    } catch (ex) {}
+    } catch (ex) { }
   }
 
   async removeDisLoveConversation({
