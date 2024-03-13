@@ -29,7 +29,7 @@ export class PostService {
     private postGalleriesRepository: Repository<PostGalleries>,
     private readonly configService: ConfigService,
     private userInteractService: UserInteractService,
-  ) { }
+  ) {}
 
   public async presignedUrlPostMultiMedia(fileNames: string[], userId: string) {
     return fileNames?.map((name) => {
@@ -101,12 +101,22 @@ export class PostService {
     }
 
     const { postGalleries, deleteGalleryIds } = dto;
-    if (deleteGalleryIds?.length > 0) {
-      const listDeletedGalleries = deleteGalleryIds.split(',');
-      await this.postGalleriesRepository.update(
-        { id: In(listDeletedGalleries) },
-        { deletedAt: moment().format(), deletedBy: updatedBy }
-      );
+
+    if (deleteGalleryIds) {
+      //delete galleries
+      const listDeletedGalleries = deleteGalleryIds?.split(',');
+      if (listDeletedGalleries.length > 0) {
+        //delete threadGalleries
+        await this.postGalleriesRepository.update(
+          {
+            id: In(listDeletedGalleries),
+          },
+          {
+            deletedAt: moment().format(),
+            deletedBy: updatedBy,
+          },
+        );
+      }
     }
 
     //update basic information.
