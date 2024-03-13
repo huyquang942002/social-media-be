@@ -71,12 +71,20 @@ export class FriendService {
   }
 
   async getAllFriendByUserId(userId: string) {
-    const [listFriend, count] = await this.friendRepository.createQueryBuilder("friend")
-    .leftJoinAndSelect("friend.senderUser", "sender")
-    .leftJoinAndSelect("friend.receiverUser", "receiver")
-    .where("friend.senderId = :userId AND friend.deletedAt IS NULL", { userId })
-    .orWhere("friend.receiverId = :userId AND friend.deletedAt IS NULL", { userId })
-    .getManyAndCount();
+    const [listFriend, count] = await this.friendRepository.findAndCount({
+      where: [
+        {
+          senderId: userId,
+          deletedAt: IsNull(),
+        },
+        {
+          receiverId: userId,
+          deletedAt: IsNull(),
+        },
+      ],
+      relations: ['senderUser', 'receiverUser'],
+    });
+
     return { listFriend, count };
   }
 
@@ -91,54 +99,42 @@ export class FriendService {
   }
 
   async getUsersNotFriends(createdBy: string) {
-    const nonFriendIds = await this.userRepository.createQueryBuilder('user')
-    .where('user.id != :createdBy', { createdBy })
-    .andWhere(qb => {
-      const subQuery = qb.subQuery()
-        .select('friend.receiverId')
-        .from(Friend, 'friend')
-        .where('friend.senderId = :createdBy', { createdBy })
-        .getQuery();
-      return 'user.id NOT IN ' + subQuery;
-    })
-    .andWhere(qb => {
-      const subQuery = qb.subQuery()
-        .select('friend.senderId')
-        .from(Friend, 'friend')
-        .where('friend.receiverId = :createdBy', { createdBy })
-        .getQuery();
-      return 'user.id NOT IN ' + subQuery;
-    })
-    .andWhere(qb => {
-      const subQuery = qb.subQuery()
-        .select('request.senderId')
-        .from(FriendRequest, 'request')
-        .where('request.receiverId = :createdBy', { createdBy })
-        .getQuery();
-      return 'user.id NOT IN ' + subQuery;
-    })
-    .andWhere(qb => {
-      const subQuery = qb.subQuery()
-        .select('request.receiverId')
-        .from(FriendRequest, 'request')
-        .where('request.senderId = :createdBy', { createdBy })
-        .getQuery();
-      return 'user.id NOT IN ' + subQuery;
-    })
-    .getMany();
+    const query = `
+        SELECT *
+        FROM "users"
+        WHERE id != ${createdBy}
+          AND id NOT IN (
+            SELECT "receiver_id"
+            FROM friends
+            WHERE "sender_id" = ${createdBy}
+          )
+          AND id NOT IN (
+            SELECT "sender_id"
+            FROM friends
+            WHERE "receiver_id" = ${createdBy}
+          )
+          AND id NOT IN (
+            SELECT "sender_id"
+            FROM request_friends
+            WHERE "receiver_id" = ${createdBy}
+          )
+          AND id NOT IN (
+            SELECT "receiver_id"
+            FROM request_friends
+            WHERE "sender_id" = ${createdBy}
+          )
+      `;
 
-  // Sử dụng danh sách ID vừa lấy được để lọc ra người dùng theo điều kiện tiếp theo
-  const userSameZipcodes = nonFriendIds.map(user => user.zipcode);
+    const nonFriends = await this.userRepository.query(query);
 
-  // Lấy người dùng có cùng zipcode và không bị xóa
-  const users = await this.userRepository.find({
-    where: {
-      zipcode: In(userSameZipcodes),
-      deletedAt: IsNull(),
-    },
-  });
+    const userSameZipcodes = nonFriends.map((item) => item?.zipcode);
 
-  return users;
+    return await this.userRepository.find({
+      where: {
+        zipcode: In(userSameZipcodes),
+        deletedAt: IsNull(),
+      },
+    });
   }
 
   // async getAllLinkPost(userId: string, otherUserId: string) {

@@ -45,7 +45,7 @@ export class CommentService {
     private configService: ConfigService,
     private userInteractService: UserInteractService,
     private notificationService: NotificationService,
-  ) { }
+  ) {}
 
   public async presignedUrlCommentMedia(fileName: string, userId: string) {
     return getS3Presigned(
@@ -164,7 +164,7 @@ export class CommentService {
             'Thông Báo',
             `${user.username} vừa phản hồi bình luận của bạn`,
           );
-        } catch (ex) { }
+        } catch (ex) {}
       }
     } else {
       try {
@@ -184,7 +184,7 @@ export class CommentService {
           'Thông Báo',
           `${user.username} vừa bình luận bài viết của bạn`,
         );
-      } catch (ex) { }
+      } catch (ex) {}
     }
 
     //update comment interacts
@@ -194,7 +194,7 @@ export class CommentService {
         userId: user.id,
         isReply: !!commentId,
       });
-    } catch (ex) { }
+    } catch (ex) {}
 
     return {
       ...comment,
@@ -293,18 +293,26 @@ export class CommentService {
     input: findAllPostFilter,
     userId: string,
   ) {
-    const { page = 1, take = 10 } = input;
-    const skip = (page - 1) * take;
-
-    const [comments, count] = await this.commentRespository
-      .createQueryBuilder('comment')
-      .leftJoinAndSelect('comment.comments', 'childComments')
-      .leftJoinAndSelect('comment.createdUser', 'createdUser')
-      .where('comment.postId = :postId AND comment.deletedAt IS NULL', { postId })
-      .orderBy('comment.id', 'DESC')
-      .skip(skip)
+    const { page, take } = input;
+    const [lists, count] = await this.commentRespository
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('comments', 'c', 'c.deletedAt is null')
+      .leftJoinAndSelect('p.createdUser', 'u', 'u.deletedAt is null')
+      .where('p.postId = :postId and p.deletedAt is null', {
+        postId,
+      })
+      .orderBy('p.id', 'DESC')
       .take(take)
+      .skip(getSkip({ page, take }))
       .getManyAndCount();
+
+    const comments = lists
+      ?.map((item) => {
+        if (!item.commentId) {
+          return item;
+        }
+      })
+      ?.filter((x) => x);
 
     //handle isLiked and isDisliked
     const actionIds = await this.userInteractService.getInteractIdsByActions([
@@ -343,9 +351,10 @@ export class CommentService {
     const [comments, count] = await this.commentRespository
       .createQueryBuilder('c')
       .where(
-        `c.deletedAt is null ${freeText
-          ? ' and LOWER(c.content) like :freeText and c.createdBy = :userId and c.postId = :postId'
-          : ''
+        `c.deletedAt is null ${
+          freeText
+            ? ' and LOWER(c.content) like :freeText and c.createdBy = :userId and c.postId = :postId'
+            : ''
         }
       `,
         {
